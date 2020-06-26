@@ -17,15 +17,61 @@ object Interfaces {
   }
 
   trait Console {
-    def play(disk: GameDisk): Unit
+    def play(disk: GameDisk): String
+  }
+
+  class Xbox extends Console {
+
+    override def play(disk: GameDisk): String =
+      disk match {
+        case x: XboxGameDisk => s"playing ${disk.game}"
+        case _               => "disk format is invalid"
+      }
+
+  }
+
+  class PlayStation extends Console {
+
+    override def play(disk: GameDisk): String =
+      disk match {
+        case x: PSGameDisk => s"playing ${disk.game}"
+        case _             => "disk format is invalid"
+      }
+
+  }
+
+  class Sega extends Console {
+
+    override def play(disk: GameDisk): String =
+      disk match {
+        case x: SegaGameDisk => s"playing ${disk.game}"
+        case _               => "disk format is invalid"
+      }
+
   }
 
   trait XboxGameDisk extends GameDisk {
     override val consoleType: String = "Xbox"
   }
 
+  trait PSGameDisk extends GameDisk {
+    override val consoleType: String = "PlayStation"
+  }
+
+  trait SegaGameDisk extends GameDisk {
+    override val consoleType: String = "Sega"
+  }
+
   class ForzaHorizon extends XboxGameDisk {
     override val game: String = "ForzaHorizon race game"
+  }
+
+  class TheWitcher extends PSGameDisk {
+    override val game: String = "The Witcher game"
+  }
+
+  class SuperMario extends SegaGameDisk {
+    override val game: String = "Super Mario game"
   }
 
 }

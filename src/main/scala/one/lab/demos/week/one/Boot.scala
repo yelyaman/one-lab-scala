@@ -21,11 +21,11 @@ object Boot extends App {
   val double: Double   = 23.123123
   val boolean: Boolean = true & false
 
-  val unit: Unit = {
-    34324
-    342
-    ()
-  }
+//  val unit: Unit = {
+//    34324
+//    342
+//    ()
+//  }
 
   val and: Boolean = true & false
   val xor: Boolean = true ^ false
