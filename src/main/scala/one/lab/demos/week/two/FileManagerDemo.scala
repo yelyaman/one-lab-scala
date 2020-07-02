@@ -12,8 +12,6 @@ object FileManagerDemo extends App {
   // Stream(1,2,2,3,4,5,56, ...............)
   val path = "/Users/artur"
 
-  LazyList(1 to 1000000000000000L)
-
   val list: Iterator[String] =
     Files
       .list(Paths.get(path))
