@@ -24,7 +24,8 @@ object Interfaces {
 
     override def play(disk: GameDisk): String =
       disk match {
-        case x: XboxGameDisk => s"playing ${disk.game}"
+        case x: XboxGameDisk => s"playing ${x.show}"
+        case x: PSGameDisk => s"playing ${x.game}"
         case _               => "disk format is invalid"
       }
 
@@ -34,7 +35,7 @@ object Interfaces {
 
     override def play(disk: GameDisk): String =
       disk match {
-        case x: PSGameDisk => s"playing ${disk.game}"
+        case x: PSGameDisk => s"playing ${x.game}"
         case _             => "disk format is invalid"
       }
 
@@ -44,7 +45,7 @@ object Interfaces {
 
     override def play(disk: GameDisk): String =
       disk match {
-        case x: SegaGameDisk => s"playing ${disk.game}"
+        case x: SegaGameDisk => s"playing ${x.game}"
         case _               => "disk format is invalid"
       }
 
@@ -52,6 +53,7 @@ object Interfaces {
 
   trait XboxGameDisk extends GameDisk {
     override val consoleType: String = "Xbox"
+    def show: String = "Xboxx"
   }
 
   trait PSGameDisk extends GameDisk {
