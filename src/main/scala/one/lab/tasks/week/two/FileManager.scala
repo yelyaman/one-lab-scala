@@ -45,6 +45,7 @@ object FileManager extends App {
   case class IncorrectFileExtensionError(error: String)
   case class DirectoryAlreadyExistsError(error: String)
   case class FileNotExistsError(error: String)
+  case class BaseError(error: String)
 
   def getFiles(path: String): List[String]                                       = {
     Files
@@ -66,15 +67,6 @@ object FileManager extends App {
     listFiles.toList
   }
 
-  def getAllContent(path: String): List[String] = {
-    val listFiles = Files
-      .list(Paths.get(path))
-      .iterator()
-      .asScala
-      .map(x => x.toFile.getName)
-    listFiles.toList
-  }
-
   // Only .txt files
   def createFile(currentPath: String, filename: String): Either[IncorrectFileExtensionError, String] = {
     if (filename.split('.').last == "txt"){
@@ -88,7 +80,7 @@ object FileManager extends App {
 
   def createDirectory(currentPath: String, filename: String): Either[DirectoryAlreadyExistsError, String] = {
     if (getDirectories(currentPath).contains(filename)){
-      Left(DirectoryAlreadyExistsError(s"$filename already exists"))
+      Left(DirectoryAlreadyExistsError(s"'$filename' already exists"))
     } else {
       val newDir = Paths.get(currentPath + s"/$filename")
       Files.createDirectory(newDir)
@@ -97,25 +89,27 @@ object FileManager extends App {
   }
 
   def removeFile(currentPath: String, filename: String): Either[FileNotExistsError, String] = {
-    if (getAllContent(currentPath).contains(filename)){
+    if (getDirectories(currentPath).contains(filename) || getFiles(currentPath).contains(filename)){
       val file = Paths.get(currentPath + s"/$filename")
       Files.delete(file)
-      Right("")
+      Right(s"$currentPath")
     } else {
-      Left(FileNotExistsError(s"$filename not exists"))
+      Left(FileNotExistsError(s"'$filename' not exists"))
     }
   }
 
   def changePath(current: String, path: String): Either[ChangePathError, String] = {
+    val root = System.getenv("SystemDrive")
     def changePathChecker(current: String, paths: List[String]): Either[ChangePathError, String] = paths match {
-      case Nil => Right(current)
-      case _ if current == "C:" => Right(current)
+      case Nil => Right(s"$current")
+      case dir :: _ if current == root && getDirectories(s"$current/").contains(path) =>
+        changePathChecker(s"$current/$dir", paths.tail)
+      case _ if current == root => Right(s"$current")
       case x :: _ if x == ".." => changePathChecker(current.split("/").init.mkString("/"), paths.tail)
-      case x :: _ if getDirectories(current).contains(x) => changePathChecker(current + "/" + x, paths.tail)
+      case x :: _ if getDirectories(current).contains(x) => changePathChecker(s"$current/$x", paths.tail)
       case _ => Left(ChangePathError("The system cannot find the specified path"))
     }
-    if (current == "C:") Right(current)
-    else changePathChecker(current, path.split("/").toList)
+    changePathChecker(current, path.split("/").toList)
   }
 
   def parseCommand(input: List[String]): Command                                       = input.head match {
@@ -130,69 +124,52 @@ object FileManager extends App {
     case _ => PrintErrorCommand(s"'${input.head}' is not a command")
   }
 
-  def handleCommand(command: Command, currentPath: String): String        = command match {
-    case ListAllContentCommand() => getAllContent(currentPath).mkString("\n")
-    case ListDirectoryCommand() => getDirectories(currentPath).mkString("\n")
-    case ListFilesCommand() => getFiles(currentPath).mkString("\n")
-    case ShowWhereAmICommand() => currentPath
-    case CreateNewFileCommand(filename) => createFile(currentPath, filename) match {
-      case Right(file) => s"$currentPath/$file"
-      case Left(IncorrectFileExtensionError(error)) => error
-    }
-    case CreateNewDirectoryCommand(filename) => createDirectory(currentPath, filename) match {
-      case Right(directory) => s"$currentPath/$directory"
-      case Left(DirectoryAlreadyExistsError(error)) => error
-    }
-    case RemoveFileCommand(filename) => removeFile(currentPath, filename) match {
-      case Right(directory) => s"$currentPath/$directory"
-      case Left(FileNotExistsError(error)) => error
-    }
-    case ChangeDirectoryCommand(destination) => changePath(currentPath, destination) match {
-      case Right(x) => x
-      case Left(ChangePathError(error)) => error
-    }
-    case PrintErrorCommand(error) => error
+  def handleCommand(command: Command, currentPath: String): Either[BaseError, String]        = command match {
+    case ListAllContentCommand() => Right((getDirectories(currentPath) ++ getFiles(currentPath)).mkString("\n"))
+    case ListDirectoryCommand() => Right(getDirectories(currentPath).mkString("\n"))
+    case ListFilesCommand() => Right(getFiles(currentPath).mkString("\n"))
+    case ShowWhereAmICommand() => Right(currentPath)
+    case CreateNewFileCommand(filename) => createFile(currentPath, filename)
+      .fold(left => Left(BaseError(left.error)), right => Right(s"$currentPath/$right"))
+    case CreateNewDirectoryCommand(filename) => createDirectory(currentPath, filename)
+      .fold(left => Left(BaseError(left.error)), right => Right(s"$currentPath/$right"))
+    case RemoveFileCommand(filename) => removeFile(currentPath, filename)
+      .fold(left => Left(BaseError(left.error)), right => Right(s"$currentPath/$right"))
+    case ChangeDirectoryCommand(destination) => changePath(currentPath, destination)
+      .fold(left => Left(BaseError(left.error)), right => Right(right))
+    case PrintErrorCommand(error) => Left(BaseError(error))
   }
 
-  def main(basePath: String): Unit                                               = {
-    print(s"$basePath> ")
-    def innerMain(path: String, input: String): Unit = input match {
-      case "" => innerMain(path, readLine())
+
+
+    def main(basePath: String): Unit = {
+      val input = readLine()
+      input match {
+      case "" => main(basePath)
       case "exit" => println("Session finished")
       case command =>
         val parsed = parseCommand(command.split(" ").toList)
-        val result = handleCommand(parsed, path)
+        val result = handleCommand(parsed, basePath)
         parsed match {
-          case _: ChangeDirectoryCommand =>
-            println(s"$result> ")
-            if (result == "The system cannot find the specified path") {
-              print(s"$path> ")
-              innerMain(path, readLine())
-            }
-            else innerMain(result, readLine())
-          case _: CreateNewDirectoryCommand =>
-            print(s"$result ")
-            if (result.contains("already exists")) {
-              print(s"$path> ")
-              innerMain(path, readLine())
-            }
-            else innerMain(result, readLine())
-          case _: RemoveFileCommand =>
-            print(s"$result> ")
-            if (result.contains("not exists")) {
-              print(s"$path> ")
-              innerMain(path, readLine())
-            }
-            else innerMain(result, readLine())
+          case errorMsg: PrintErrorCommand =>
+            println(errorMsg.error)
+            print(s"$basePath> ")
+            main(basePath)
           case _ =>
-            println(result)
-            print(s"$path> ")
-            innerMain(path, readLine())
+            result match {
+              case Right(value) =>
+                print(s"$value> ")
+                main(value)
+              case Left(errorMsg) =>
+                println(s"${errorMsg.error}")
+                print(s"$basePath> ")
+                main(basePath)
+            }
         }
+      }
     }
-    innerMain(basePath, "")
-  }
 
   val curDirectory = System.getProperty("user.dir").split('\\').mkString("/")
+  print(s"$curDirectory> ")
   main(curDirectory)
 }
