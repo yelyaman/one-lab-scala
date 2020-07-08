@@ -12,9 +12,8 @@ object Artifacts {
   // HTTP client
   val requests = "com.lihaoyi" %% "requests" % "0.5.1"
 
-  val scalaTest   = "org.scalatest"                %% "scalatest"    % "3.2.0" % "test"
-  val chatLibrary = "io.github.arturka"            %% "chat-library" % "0.0.1"
-  val sttp        = "com.softwaremill.sttp.client" %% "core"         % "2.2.1"
+  val scalaTest = "org.scalatest"                %% "scalatest" % "3.2.0" % "test"
+  val sttp      = "com.softwaremill.sttp.client" %% "core"      % "2.2.1"
 
   val akkaHttp   = "com.typesafe.akka" %% "akka-http"   % "10.1.12"
   val akkaStream = "com.typesafe.akka" %% "akka-stream" % "2.5.26"
@@ -27,7 +26,6 @@ object Dependencies {
     json4sNative,
     json4sJackson,
     scalaTest,
-    chatLibrary,
     requests,
     sttp,
     akkaHttp,
