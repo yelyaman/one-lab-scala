@@ -18,49 +18,25 @@ object Githuber extends App {
   implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
   implicit val defaultFormats: DefaultFormats.type        = DefaultFormats
 
-  // TODO: поля можете добавить какие хотите
-  case class GithubUser(login: String, name: String, location: Option[String], company: Option[String])
-  case class GithubRepository(name: String, description: Option[String],fork: Boolean, language: String)
+  case class GithubUser(login: String, name: String, location: Option[String], company: Option[String], repos_url: String)
+  case class GithubRepository(name: String, description: Option[String], full_name: String, fork: Boolean, language: String)
 
-  //  https://api.github.com/users/{$USER}
-  def getGithubUser(username: String): Future[GithubUser] = Future {
-    parse(requests.get(s"https://api.github.com/users/$username").text)
-    .camelizeKeys.extract[GithubUser]
-  }
+  def getGithubUser(username: String): Future[GithubUser] =
+    RestClientImpl.get(s"https://api.github.com/users/$username").map(x => parse(x).extract[GithubUser])
 
-  def getUserRepositories(username: String): Future[List[GithubRepository]] = Future {
-    parse(requests.get(s"https://api.github.com/users/$username/repos").text)
-      .camelizeKeys.extract[List[GithubRepository]]
-  }
+  def getUserRepositories(repoUrl: String): Future[List[GithubRepository]] =
+    RestClientImpl.get(s"$repoUrl").map(x => parse(x).extract[List[GithubRepository]])
 
   def getUserInfo(username: String): Unit = {
-    getGithubUser(username).onComplete {
-      case Success(gitInfo) =>
-        val name = gitInfo.name
-        val login = gitInfo.login
-        val location = gitInfo.location
-        val company = gitInfo.company
-
-        println(s"Name: $name \nLogin: $login")
-        println(s"Location: ${location.getOrElse("no info")} " +
-          s"\nOrganization: ${company.getOrElse("no info")}")
-      case Failure(ex) => println(ex.getMessage)
-    }
-    Thread.sleep(3000) // Здесь не очень получилось(
-
-    getUserRepositories(username).onComplete {
-      case Success(repositories) => repositories.foreach(repo => {
-        val name = repo.name
-        val language = repo.language
-        val fork = repo.fork
-        val description = repo.description
-
-        println(s"Repository: $name, language: $language, ${if (fork) "forked" else "not forked"}")
-        println(s"\tDescription: ${description.getOrElse("no description")}")
+    getGithubUser(username).flatMap(x => getUserRepositories(x.repos_url)).onComplete{
+      case Success(repos) => repos.foreach(repo => {
+        val userName = repo.full_name.split("/").head
+        println(s"$userName has ${repos.length} repositories")
+        println(s"Repository: ${repo.name}, language: ${repo.language}, ${if (repo.fork) "forked" else "not forked"}")
+        println(s"\tDescription: ${repo.description.getOrElse("no description")}")
       })
       case Failure(ex) => println(ex.getMessage)
     }
-
   }
 
   getUserInfo("yelyaman")
