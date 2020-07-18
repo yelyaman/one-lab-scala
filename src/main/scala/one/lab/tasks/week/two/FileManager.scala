@@ -1,6 +1,7 @@
 package one.lab.tasks.week.two
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
+
 import scala.io.StdIn._
 import scala.jdk.CollectionConverters._
 
@@ -33,6 +34,8 @@ object FileManager extends App {
   case class ListFilesCommand()                           extends Command
   case class ListAllContentCommand()                      extends Command
   case class ShowWhereAmICommand()                        extends Command
+  case class ContinueCommand()                            extends Command
+  case class ExitCommand()                                extends Command
   case class CreateNewFileCommand(filename: String)       extends Command
   case class CreateNewDirectoryCommand(filename: String)  extends Command
   case class RemoveFileCommand(filename: String)          extends Command
@@ -47,25 +50,20 @@ object FileManager extends App {
   case class FileNotExistsError(error: String)
   case class BaseError(error: String)
 
-  def getFiles(path: String): List[String]                                       = {
+  val filesFilter: Path => Boolean = path => path.toFile.isFile
+  val directoryFilter: Path => Boolean = path => path.toFile.isDirectory
+
+  def getDirectoryContent(path: String, func: Path => Boolean): List[String]                                       = {
     Files
       .list(Paths.get(path))
       .iterator()
       .asScala
-      .filter(x => x.toFile.isFile)
+      .filter(func)
       .map(x => x.toFile.getName)
       .toList
   }
 
-  def getDirectories(path: String): List[String]                                 = {
-    val listFiles = Files
-      .list(Paths.get(path))
-      .iterator()
-      .asScala
-      .filter(x => x.toFile.isDirectory)
-      .map(x => x.toFile.getName)
-    listFiles.toList
-  }
+
 
   // Only .txt files
   def createFile(currentPath: String, filename: String): Either[IncorrectFileExtensionError, String] = {
@@ -73,13 +71,13 @@ object FileManager extends App {
       val newFile = Paths.get(currentPath + s"/$filename")
       Files.createFile(newFile)
       Right(s"$filename")
-    } else if (getFiles(currentPath).contains(filename))
+    } else if (getDirectoryContent(currentPath, filesFilter).contains(filename))
       Left(IncorrectFileExtensionError(s"$filename already exists"))
     else Left(IncorrectFileExtensionError("The extension is incorrect"))
   }
 
   def createDirectory(currentPath: String, filename: String): Either[DirectoryAlreadyExistsError, String] = {
-    if (getDirectories(currentPath).contains(filename)){
+    if (getDirectoryContent(currentPath, filesFilter).contains(filename)){
       Left(DirectoryAlreadyExistsError(s"'$filename' already exists"))
     } else {
       val newDir = Paths.get(currentPath + s"/$filename")
@@ -88,11 +86,12 @@ object FileManager extends App {
     }
   }
 
-  def removeFile(currentPath: String, filename: String): Either[FileNotExistsError, String] = {
-    if (getDirectories(currentPath).contains(filename) || getFiles(currentPath).contains(filename)){
-      val file = Paths.get(currentPath + s"/$filename")
+  def removeFile(current: String, filename: String): Either[FileNotExistsError, String] = {
+    if (getDirectoryContent(current, directoryFilter).contains(filename) ||
+      getDirectoryContent(current, filesFilter).contains(filename)){
+      val file = Paths.get(current + s"/$filename")
       Files.delete(file)
-      Right(s"$currentPath")
+      Right("")
     } else {
       Left(FileNotExistsError(s"'$filename' not exists"))
     }
@@ -102,17 +101,19 @@ object FileManager extends App {
     val root = System.getenv("SystemDrive")
     def changePathChecker(current: String, paths: List[String]): Either[ChangePathError, String] = paths match {
       case Nil => Right(s"$current")
-      case dir :: _ if current == root && getDirectories(s"$current/").contains(path) =>
+      case dir :: _ if current == root && getDirectoryContent(current, directoryFilter).contains(path) =>
         changePathChecker(s"$current/$dir", paths.tail)
       case _ if current == root => Right(s"$current")
       case x :: _ if x == ".." => changePathChecker(current.split("/").init.mkString("/"), paths.tail)
-      case x :: _ if getDirectories(current).contains(x) => changePathChecker(s"$current/$x", paths.tail)
+      case x :: _ if getDirectoryContent(current, directoryFilter).contains(x) => changePathChecker(s"$current/$x", paths.tail)
       case _ => Left(ChangePathError("The system cannot find the specified path"))
     }
     changePathChecker(current, path.split("/").toList)
   }
 
   def parseCommand(input: List[String]): Command                                       = input.head match {
+    case "" => ContinueCommand()
+    case "exit" => ExitCommand()
     case "ll" => ListAllContentCommand()
     case "dir" => ListDirectoryCommand()
     case "ls" => ListFilesCommand()
@@ -125,10 +126,13 @@ object FileManager extends App {
   }
 
   def handleCommand(command: Command, currentPath: String): Either[BaseError, String]        = command match {
-    case ListAllContentCommand() => Right((getDirectories(currentPath) ++ getFiles(currentPath)).mkString("\n"))
-    case ListDirectoryCommand() => Right(getDirectories(currentPath).mkString("\n"))
-    case ListFilesCommand() => Right(getFiles(currentPath).mkString("\n"))
+    case ListAllContentCommand() => Right((getDirectoryContent(currentPath, directoryFilter)
+      ++ getDirectoryContent(currentPath, filesFilter)).mkString("\n"))
+    case ListDirectoryCommand() => Right(getDirectoryContent(currentPath, directoryFilter).mkString("\n"))
+    case ListFilesCommand() => Right(getDirectoryContent(currentPath, filesFilter).mkString("\n"))
     case ShowWhereAmICommand() => Right(currentPath)
+    case ContinueCommand() => Right(currentPath)
+    case ExitCommand() => sys.exit()
     case CreateNewFileCommand(filename) => createFile(currentPath, filename)
       .fold(left => Left(BaseError(left.error)), right => Right(s"$currentPath/$right"))
     case CreateNewDirectoryCommand(filename) => createDirectory(currentPath, filename)
@@ -140,13 +144,9 @@ object FileManager extends App {
     case PrintErrorCommand(error) => Left(BaseError(error))
   }
 
-
-
     def main(basePath: String): Unit = {
       val input = readLine()
       input match {
-      case "" => main(basePath)
-      case "exit" => println("Session finished")
       case command =>
         val parsed = parseCommand(command.split(" ").toList)
         val result = handleCommand(parsed, basePath)

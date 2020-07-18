@@ -1,6 +1,6 @@
 package one.lab.tasks.week.three
 
-object Collections extends App{
+object Collections extends App {
 
   // duplicateNTimes(3, List(1,2,3)) == List(1,1,1,2,2,2,3,3,3)
   // duplicateNTimes(3, List()) == List()
